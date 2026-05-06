@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
   Check,
@@ -13,16 +13,19 @@ import {
   Type,
 } from "lucide-react";
 
+type Mode = "light" | "dark";
+
+const presets: Record<Mode, { background: string; text: string; accent: string }> = {
+  light: { background: "#f7f8fb", text: "#0f172a", accent: "#7c3aed" },
+  dark: { background: "#09090b", text: "#f8fafc", accent: "#8b5cf6" },
+};
+
 function hexToRgba(hex: string, alpha: number) {
   const sanitized = hex.replace("#", "");
   const full =
     sanitized.length === 3
-      ? sanitized
-          .split("")
-          .map((c) => c + c)
-          .join("")
+      ? sanitized.split("").map((c) => c + c).join("")
       : sanitized;
-
   const num = parseInt(full, 16);
   const r = (num >> 16) & 255;
   const g = (num >> 8) & 255;
@@ -30,80 +33,37 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-const presets = {
-  light: {
-    background: "#f7f8fb",
-    text: "#0f172a",
-    accent: "#7c3aed",
-  },
-  dark: {
-    background: "#09090b",
-    text: "#f8fafc",
-    accent: "#8b5cf6",
-  },
-};
-
-type Mode = "light" | "dark";
+const systemMode = (): Mode =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
 
 export default function App() {
-  const getPreferredMode = (): Mode => {
-    if (typeof window === "undefined") return "dark";
-    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  };
-  const [mode, setMode] = useState<Mode>(getPreferredMode);
-  const [background, setBackground] = useState(() => presets[getPreferredMode()].background);
-  const [text, setText] = useState(() => presets[getPreferredMode()].text);
-  const [accent, setAccent] = useState(() => presets[getPreferredMode()].accent);
+  const [mode, setMode] = useState<Mode>(systemMode);
+  const [{ background, text, accent }, setColors] = useState(() => presets[systemMode()]);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [showCopy, setShowCopy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [domain, setDomain] = useState("sarbu.de");
 
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: light)");
-
-    const syncWithSystem = () => {
-      const nextMode: Mode = media.matches ? "light" : "dark";
-      const nextPreset = presets[nextMode];
-      setMode(nextMode);
-      setBackground(nextPreset.background);
-      setText(nextPreset.text);
-      setAccent(nextPreset.accent);
-    };
-
-    syncWithSystem();
-
-    media.addEventListener("change", syncWithSystem);
-    return () => media.removeEventListener("change", syncWithSystem);
-  }, []);
-
-  const muted = useMemo(() => hexToRgba(text, 0.68), [text]);
-
-  const panelBg = useMemo(
-    () =>
-      mode === "dark"
-        ? "rgba(255, 255, 255, 0.08)"
-        : "rgba(255, 255, 255, 0.88)",
-    [mode]
-  );
-
-  const panelBorder = useMemo(
-    () =>
-      mode === "dark"
-        ? "rgba(255, 255, 255, 0.12)"
-        : "rgba(15, 23, 42, 0.10)",
-    [mode]
-  );
-
-  const applyPreset = (nextMode: Mode) => {
-    const nextPreset = presets[nextMode];
-    setMode(nextMode);
-    setBackground(nextPreset.background);
-    setText(nextPreset.text);
-    setAccent(nextPreset.accent);
+  const applyPreset = (next: Mode) => {
+    setMode(next);
+    setColors(presets[next]);
   };
 
-  const resetCurrent = () => applyPreset(mode);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const onChange = () => applyPreset(media.matches ? "light" : "dark");
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  const muted = hexToRgba(text, 0.68);
+  const isDark = mode === "dark";
+  const panelBg = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.88)";
+  const panelBorder = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(15, 23, 42, 0.10)";
+  const gridLine = hexToRgba(text, 0.04);
 
   const copyDomain = async () => {
     try {
@@ -111,22 +71,24 @@ export default function App() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
-      // ignore
+      // clipboard unavailable
     }
   };
 
   return (
     <div
-      className="relative h-screen w-screen overflow-hidden"
       style={{
+        position: "relative",
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+        color: text,
         background: `
           radial-gradient(circle at 20% 25%, ${hexToRgba(accent, 0.18)}, transparent 24%),
           radial-gradient(circle at 80% 15%, ${hexToRgba(accent, 0.12)}, transparent 20%),
-          radial-gradient(circle at 50% 85%, ${hexToRgba(text, mode === "dark" ? 0.06 : 0.04)}, transparent 28%),
+          radial-gradient(circle at 50% 85%, ${hexToRgba(text, isDark ? 0.06 : 0.04)}, transparent 28%),
           ${background}
         `,
-        backgroundSize: "200% 200%",
-        color: text,
       }}
     >
       <div
@@ -134,18 +96,11 @@ export default function App() {
           position: "absolute",
           inset: 0,
           opacity: 0.3,
-          backgroundImage: `linear-gradient(${hexToRgba(
-            text,
-            0.04
-          )} 1px, transparent 1px), linear-gradient(90deg, ${hexToRgba(
-            text,
-            0.04
-          )} 1px, transparent 1px)`,
+          pointerEvents: "none",
+          backgroundImage: `linear-gradient(${gridLine} 1px, transparent 1px), linear-gradient(90deg, ${gridLine} 1px, transparent 1px)`,
           backgroundSize: "72px 72px",
           maskImage: "radial-gradient(circle at center, black, transparent 82%)",
-          WebkitMaskImage:
-            "radial-gradient(circle at center, black, transparent 82%)",
-          pointerEvents: "none",
+          WebkitMaskImage: "radial-gradient(circle at center, black, transparent 82%)",
         }}
       />
 
@@ -159,7 +114,7 @@ export default function App() {
           transform: "translate(-50%, -50%)",
           borderRadius: "999px",
           filter: "blur(80px)",
-          background: hexToRgba(accent, mode === "dark" ? 0.12 : 0.08),
+          background: hexToRgba(accent, isDark ? 0.12 : 0.08),
           pointerEvents: "none",
         }}
       />
@@ -175,21 +130,13 @@ export default function App() {
           padding: "24px",
         }}
       >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: "1100px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <div style={{ width: "100%", maxWidth: "1100px" }}>
           <div
             style={{
               marginBottom: "24px",
               display: "flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: "12px",
             }}
           >
@@ -218,11 +165,13 @@ export default function App() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
-            className="text-5xl font-semibold tracking-[-0.06em] sm:text-6xl md:text-7xl lg:text-8xl xl:text-[8rem]"
             style={{
+              margin: 0,
               fontSize: "clamp(3rem, 9vw, 8rem)",
+              fontWeight: 600,
+              letterSpacing: "-0.06em",
               color: text,
-              textShadow: `0 0 38px ${hexToRgba(accent, mode === "dark" ? 0.16 : 0.08)}`,
+              textShadow: `0 0 38px ${hexToRgba(accent, isDark ? 0.16 : 0.08)}`,
             }}
           >
             {domain}
@@ -231,8 +180,8 @@ export default function App() {
           <p
             style={{
               marginTop: "24px",
-              marginBottom: 0,
               maxWidth: "760px",
+              marginInline: "auto",
               fontSize: "clamp(1rem, 2vw, 1.35rem)",
               lineHeight: 1.6,
               color: muted,
@@ -251,7 +200,7 @@ export default function App() {
                 gap: "10px",
                 borderRadius: "999px",
                 border: `1px solid ${hexToRgba(accent, 0.34)}`,
-                background: hexToRgba(accent, mode === "dark" ? 0.14 : 0.1),
+                background: hexToRgba(accent, isDark ? 0.14 : 0.1),
                 color: text,
                 padding: "12px 18px",
                 cursor: "pointer",
@@ -267,52 +216,46 @@ export default function App() {
         </div>
       </main>
 
-    <button
-      onClick={() => setControlsOpen((v) => !v)}
-      style={{
-        position: "fixed",
-        right: 0,
-        bottom: "14vh",
-        zIndex: 30,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "10px",
-        width: "52px",
-        minHeight: "164px",
-        borderTopLeftRadius: "18px",
-        borderBottomLeftRadius: "18px",
-        borderTopRightRadius: 0,
-        borderBottomRightRadius: 0,
-        border: `1px solid ${panelBorder}`,
-        borderRight: "none",
-        background: panelBg,
-        color: text,
-        padding: "14px 10px",
-        cursor: "pointer",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-        boxShadow: `0 12px 40px ${hexToRgba(
-          "#000000",
-          mode === "dark" ? 0.28 : 0.08
-        )}`,
-      }}
-    >
-      {controlsOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-      <span
+      <button
+        onClick={() => setControlsOpen((v) => !v)}
         style={{
-          writingMode: "vertical-rl",
-          transform: "rotate(180deg)",
-          fontSize: "12px",
-          letterSpacing: "0.18em",
-          textTransform: "uppercase",
-          lineHeight: 1,
+          position: "fixed",
+          right: 0,
+          bottom: "14vh",
+          zIndex: 30,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "10px",
+          width: "52px",
+          minHeight: "164px",
+          borderRadius: "18px 0 0 18px",
+          border: `1px solid ${panelBorder}`,
+          borderRight: "none",
+          background: panelBg,
+          color: text,
+          padding: "14px 10px",
+          cursor: "pointer",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          boxShadow: `0 12px 40px ${hexToRgba("#000000", isDark ? 0.28 : 0.08)}`,
         }}
       >
-        Customize
-      </span>
-    </button>
+        {controlsOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+        <span
+          style={{
+            writingMode: "vertical-rl",
+            transform: "rotate(180deg)",
+            fontSize: "12px",
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            lineHeight: 1,
+          }}
+        >
+          Customize
+        </span>
+      </button>
 
       {controlsOpen && (
         <>
@@ -348,16 +291,13 @@ export default function App() {
                 background: panelBg,
                 backdropFilter: "blur(24px) saturate(150%)",
                 WebkitBackdropFilter: "blur(24px) saturate(150%)",
-                boxShadow: `0 24px 80px ${hexToRgba(
-                  "#000000",
-                  mode === "dark" ? 0.34 : 0.12
-                )}`,
+                boxShadow: `0 24px 80px ${hexToRgba("#000000", isDark ? 0.34 : 0.12)}`,
                 padding: "20px",
                 boxSizing: "border-box",
                 overflow: "auto",
               }}
             >
-              <div
+              <header
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
@@ -376,39 +316,27 @@ export default function App() {
                   >
                     Controls
                   </div>
-                  <h2
-                    style={{
-                      margin: "8px 0 0",
-                      fontSize: "28px",
-                      fontWeight: 600,
-                    }}
-                  >
+                  <h2 style={{ margin: "8px 0 0", fontSize: "28px", fontWeight: 600 }}>
                     Style playground
                   </h2>
                 </div>
 
                 <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    onClick={resetCurrent}
-                    style={iconButtonStyle(panelBorder, text)}
-                  >
+                  <button onClick={() => applyPreset(mode)} style={iconButtonStyle(panelBorder, text)}>
                     <RotateCcw size={16} />
                   </button>
-                  <button
-                    onClick={() => setControlsOpen(false)}
-                    style={iconButtonStyle(panelBorder, text)}
-                  >
+                  <button onClick={() => setControlsOpen(false)} style={iconButtonStyle(panelBorder, text)}>
                     <PanelRightClose size={16} />
                   </button>
                 </div>
-              </div>
+              </header>
 
               <div style={{ display: "grid", gap: "18px" }}>
                 <ControlBlock label="Domain" icon={<Type size={16} />}>
                   <input
                     value={domain}
                     onChange={(e) => setDomain(e.target.value)}
-                    style={inputStyle(background, mode, panelBorder, text)}
+                    style={inputStyle(background, isDark, panelBorder, text)}
                   />
                 </ControlBlock>
 
@@ -433,7 +361,7 @@ export default function App() {
                   <input
                     type="color"
                     value={background}
-                    onChange={(e) => setBackground(e.target.value)}
+                    onChange={(e) => setColors((c) => ({ ...c, background: e.target.value }))}
                     style={colorInputStyle(panelBorder)}
                   />
                 </ControlBlock>
@@ -442,7 +370,7 @@ export default function App() {
                   <input
                     type="color"
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={(e) => setColors((c) => ({ ...c, text: e.target.value }))}
                     style={colorInputStyle(panelBorder)}
                   />
                 </ControlBlock>
@@ -451,7 +379,7 @@ export default function App() {
                   <input
                     type="color"
                     value={accent}
-                    onChange={(e) => setAccent(e.target.value)}
+                    onChange={(e) => setColors((c) => ({ ...c, accent: e.target.value }))}
                     style={colorInputStyle(panelBorder)}
                   />
                 </ControlBlock>
@@ -489,8 +417,8 @@ function ControlBlock({
   children,
 }: {
   label: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
+  icon: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div>
@@ -512,8 +440,8 @@ function ControlBlock({
   );
 }
 
-function iconButtonStyle(borderColor: string, color: string) {
-  return {
+const iconButtonStyle = (borderColor: string, color: string) =>
+  ({
     width: "38px",
     height: "38px",
     borderRadius: "999px",
@@ -524,16 +452,10 @@ function iconButtonStyle(borderColor: string, color: string) {
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-  } as const;
-}
+  }) as const;
 
-function inputStyle(
-  background: string,
-  mode: Mode,
-  borderColor: string,
-  color: string
-) {
-  return {
+const inputStyle = (background: string, isDark: boolean, borderColor: string, color: string) =>
+  ({
     width: "100%",
     height: "48px",
     borderRadius: "18px",
@@ -542,13 +464,12 @@ function inputStyle(
     fontSize: "14px",
     outline: "none",
     boxSizing: "border-box",
-    background: hexToRgba(background, mode === "dark" ? 0.25 : 0.75),
+    background: hexToRgba(background, isDark ? 0.25 : 0.75),
     color,
-  } as const;
-}
+  }) as const;
 
-function colorInputStyle(borderColor: string) {
-  return {
+const colorInputStyle = (borderColor: string) =>
+  ({
     width: "100%",
     height: "48px",
     borderRadius: "18px",
@@ -557,16 +478,10 @@ function colorInputStyle(borderColor: string) {
     background: "transparent",
     boxSizing: "border-box",
     cursor: "pointer",
-  } as const;
-}
+  }) as const;
 
-function modeButtonStyle(
-  active: boolean,
-  accent: string,
-  borderColor: string,
-  color: string
-) {
-  return {
+const modeButtonStyle = (active: boolean, accent: string, borderColor: string, color: string) =>
+  ({
     height: "48px",
     borderRadius: "18px",
     border: `1px solid ${active ? hexToRgba(accent, 0.45) : borderColor}`,
@@ -577,5 +492,4 @@ function modeButtonStyle(
     alignItems: "center",
     justifyContent: "center",
     fontSize: "14px",
-  } as const;
-}
+  }) as const;
