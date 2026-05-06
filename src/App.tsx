@@ -76,7 +76,7 @@ export default function App() {
   };
 
   return (
-    <div
+    <motion.div
       style={{
         position: "relative",
         height: "100vh",
@@ -89,7 +89,10 @@ export default function App() {
           radial-gradient(circle at 50% 85%, ${hexToRgba(text, isDark ? 0.06 : 0.04)}, transparent 28%),
           ${background}
         `,
+        backgroundSize: "200% 200%",
       }}
+      animate={{ backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"] }}
+      transition={{ duration: 80, ease: "linear", repeat: Infinity }}
     >
       <div
         style={{
@@ -407,7 +410,7 @@ export default function App() {
           </aside>
         </>
       )}
-    </div>
+    </motion.div>
   );
 }
 
