@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Check,
   Copy,
@@ -127,14 +128,6 @@ export default function App() {
         backgroundSize: "200% 200%",
         color: text,
       }}
-      animate={{
-        backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"],
-      }}
-      transition={{
-        duration: 80,
-        ease: "linear",
-        repeat: Infinity,
-      }}
     >
       <div
         style={{
@@ -221,7 +214,7 @@ export default function App() {
             </span>
           </div>
 
-          <h1
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
@@ -233,7 +226,7 @@ export default function App() {
             }}
           >
             {domain}
-          </h1>
+          </motion.h1>
 
           <p
             style={{
